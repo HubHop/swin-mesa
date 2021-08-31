@@ -11,5 +11,5 @@ DATA:
   NUM_WORKERS: 10
   BATCH_SIZE: 128
   DATA_PATH: /projects/dl65/dataset/cifar100
-  DATASET: imagenet
+  DATASET: cifar
 MS_POLICY: ms_policy/policy_tiny-8bit.txt

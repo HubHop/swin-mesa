@@ -15,9 +15,9 @@
 #SBATCH --mail-type=FAIL
 # SBATCH --exclude=dgx000
 
+module load gcc/5.4.0
+module load cuda/10.1
+module load cudnn/7.6.5-cuda10.1
 
-# Command to run a gpu job
-# For example:
-# module load anaconda/2019.03-Python3.7-gcc5
 cd ../
 bash scripts/run.sh

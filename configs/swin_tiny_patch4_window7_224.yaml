@@ -12,4 +12,4 @@ DATA:
   BATCH_SIZE: 128
   DATA_PATH: /home/datasets/imagenet
   DATASET: imagenet
-MS_POLICY: /data1/cvpr2022/deit-mem-save/config/policy_tiny-8bit.txt
+MS_POLICY: ms_policy/policy_tiny-8bit.txt

@@ -1,0 +1,15 @@
+MODEL:
+  TYPE: swin
+  NAME: debug
+  DROP_PATH_RATE: 0.2
+  SWIN:
+    EMBED_DIM: 96
+    DEPTHS: [ 2, 2, 6, 2 ]
+    NUM_HEADS: [ 3, 6, 12, 24 ]
+    WINDOW_SIZE: 7
+DATA:
+  NUM_WORKERS: 0
+  BATCH_SIZE: 128
+  DATA_PATH: /home/datasets/cifar100
+  DATASET: cifar
+MS_POLICY: ms_policy/policy_tiny-8bit.txt

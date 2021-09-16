@@ -450,7 +450,7 @@ class PatchEmbed(nn.Module):
             f"Input image size ({H}*{W}) doesn't match model ({self.img_size[0]}*{self.img_size[1]})."
         x = self.proj(x).flatten(2).transpose(1, 2)  # B Ph*Pw C
         if self.norm is not None:
-            x = self.norm(x)
+            x = self.norm(x.contiguous())
         return x
 
     def flops(self):

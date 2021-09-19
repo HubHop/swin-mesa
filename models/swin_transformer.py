@@ -16,9 +16,9 @@ class Mlp(nn.Module):
         super().__init__()
         out_features = out_features or in_features
         hidden_features = hidden_features or in_features
-        self.fc1 = ms.Linear(in_features, hidden_features, groups=num_heads)
-        self.act = act_layer(groups=num_heads)
-        self.fc2 = ms.Linear(hidden_features, out_features, groups=num_heads)
+        self.fc1 = ms.Linear(in_features, hidden_features, quant_groups=num_heads)
+        self.act = act_layer(quant_groups=num_heads)
+        self.fc2 = ms.Linear(hidden_features, out_features, quant_groups=num_heads)
         self.drop = nn.Dropout(drop)
 
     def forward(self, x):
@@ -102,16 +102,16 @@ class WindowAttention(nn.Module):
         relative_position_index = relative_coords.sum(-1)  # Wh*Ww, Wh*Ww
         self.register_buffer("relative_position_index", relative_position_index)
 
-        self.qkv = ms.Linear(dim, dim * 3, bias=qkv_bias, groups=num_heads)
+        self.qkv = ms.Linear(dim, dim * 3, bias=qkv_bias, quant_groups=num_heads)
         self.attn_drop = nn.Dropout(attn_drop)
-        self.proj = ms.Linear(dim, dim, groups=num_heads)
+        self.proj = ms.Linear(dim, dim, quant_groups=num_heads)
         self.proj_drop = nn.Dropout(proj_drop)
 
-        self.mm1 = ms.MatMul(groups=num_heads)
-        self.mm2 = ms.MatMul(groups=num_heads)
+        self.mm1 = ms.MatMul(quant_groups=num_heads)
+        self.mm2 = ms.MatMul(quant_groups=num_heads)
 
         trunc_normal_(self.relative_position_bias_table, std=.02)
-        self.softmax = ms.Softmax(dim=-1, groups=num_heads)
+        self.softmax = ms.Softmax(dim=-1, quant_groups=num_heads)
 
     def forward(self, x, mask=None):
         """
@@ -200,13 +200,13 @@ class SwinTransformerBlock(nn.Module):
             self.window_size = min(self.input_resolution)
         assert 0 <= self.shift_size < self.window_size, "shift_size must in 0-window_size"
 
-        self.norm1 = norm_layer(dim, groups=num_heads)
+        self.norm1 = norm_layer(dim, quant_groups=num_heads)
         self.attn = WindowAttention(
             dim, window_size=to_2tuple(self.window_size), num_heads=num_heads,
             qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
 
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
-        self.norm2 = norm_layer(dim, groups=num_heads)
+        self.norm2 = norm_layer(dim, quant_groups=num_heads)
         mlp_hidden_dim = int(dim * mlp_ratio)
         self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop, num_heads=num_heads)
 
@@ -306,8 +306,8 @@ class PatchMerging(nn.Module):
         super().__init__()
         self.input_resolution = input_resolution
         self.dim = dim
-        self.reduction = ms.Linear(4 * dim, 2 * dim, bias=False, groups=num_heads)
-        self.norm = norm_layer(4 * dim, groups=num_heads)
+        self.reduction = ms.Linear(4 * dim, 2 * dim, bias=False, quant_groups=num_heads)
+        self.norm = norm_layer(4 * dim, quant_groups=num_heads)
 
     def forward(self, x):
         """
@@ -439,7 +439,7 @@ class PatchEmbed(nn.Module):
         self.proj = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size, stride=patch_size)
         if norm_layer is not None:
             # self.norm = nn.LayerNorm(embed_dim)
-            self.norm = norm_layer(embed_dim, groups=num_heads)
+            self.norm = norm_layer(embed_dim, quant_groups=num_heads)
         else:
             self.norm = None
 
@@ -539,9 +539,9 @@ class SwinTransformer(nn.Module):
                                use_checkpoint=use_checkpoint)
             self.layers.append(layer)
 
-        self.norm = norm_layer(self.num_features, groups=num_heads[-1])
+        self.norm = norm_layer(self.num_features, quant_groups=num_heads[-1])
         self.avgpool = nn.AdaptiveAvgPool1d(1)
-        self.head = ms.Linear(self.num_features, num_classes, groups=num_heads[-1]) if num_classes > 0 else nn.Identity()
+        self.head = ms.Linear(self.num_features, num_classes, quant_groups=num_heads[-1]) if num_classes > 0 else nn.Identity()
 
         self.apply(self._init_weights)
 

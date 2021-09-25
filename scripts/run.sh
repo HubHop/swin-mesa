@@ -1,4 +1,4 @@
-source activate quant
+source activate quant_head_noise
 which python
 nvidia-smi
 

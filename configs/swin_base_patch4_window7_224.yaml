@@ -7,3 +7,9 @@ MODEL:
     DEPTHS: [ 2, 2, 18, 2 ]
     NUM_HEADS: [ 4, 8, 16, 32 ]
     WINDOW_SIZE: 7
+DATA:
+  NUM_WORKERS: 10
+  BATCH_SIZE: 128
+  DATA_PATH: /projects/dl65/m3_imagenet
+  DATASET: imagenet
+MS_POLICY: ms_policy/policy_tiny-8bit.txt

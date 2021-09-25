@@ -177,6 +177,7 @@ _C.SEED = 0
 _C.EVAL_MODE = False
 # Test throughput only, overwritten by command line argument
 _C.THROUGHPUT_MODE = False
+_C.TRAIN_THROUGHPUT_MODE = False
 # local rank for DistributedDataParallel, given by command line argument
 _C.LOCAL_RANK = 0
 _C.MS_POLICY = ''

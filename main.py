@@ -64,6 +64,7 @@ def parse_option():
     parser.add_argument('--tag', help='tag of experiment')
     parser.add_argument('--eval', action='store_true', help='Perform evaluation only')
     parser.add_argument('--throughput', action='store_true', help='Test throughput only')
+    parser.add_argument('--train_throughput', action='store_true', help='Test throughput only')
 
     # distributed training
     parser.add_argument("--local_rank", type=int, required=True, help='local rank for DistributedDataParallel')
@@ -131,6 +132,10 @@ def main(config):
 
     if config.THROUGHPUT_MODE:
         throughput(data_loader_val, model, logger)
+        return
+
+    if config.TRAIN_THROUGHPUT_MODE:
+        train_throughput(config, model, criterion, data_loader_train, optimizer, 0, mixup_fn, lr_scheduler)
         return
 
     logger.info("Start training")
@@ -233,6 +238,117 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
                 f'mem {memory_used:.0f}MB')
     epoch_time = time.time() - start
     logger.info(f"EPOCH {epoch} training takes {datetime.timedelta(seconds=int(epoch_time))}")
+
+
+
+def train_throughput(config, model, criterion, data_loader, optimizer, epoch, mixup_fn, lr_scheduler):
+    model.train()
+    optimizer.zero_grad()
+
+    num_steps = len(data_loader)
+    batch_time = AverageMeter()
+    loss_meter = AverageMeter()
+    norm_meter = AverageMeter()
+
+    start = time.time()
+    end = time.time()
+    for idx, (samples, targets) in enumerate(data_loader):
+        samples = samples.cuda(non_blocking=True)
+        targets = targets.cuda(non_blocking=True)
+        batch_size = samples.shape[0]
+        if mixup_fn is not None:
+            samples, targets = mixup_fn(samples, targets)
+
+        for i in range(20):
+            outputs = model(samples)
+            if config.TRAIN.ACCUMULATION_STEPS > 1:
+                loss = criterion(outputs, targets)
+                loss = loss / config.TRAIN.ACCUMULATION_STEPS
+                if config.AMP_OPT_LEVEL != "O0":
+                    with amp.scale_loss(loss, optimizer) as scaled_loss:
+                        scaled_loss.backward()
+                    if config.TRAIN.CLIP_GRAD:
+                        grad_norm = torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), config.TRAIN.CLIP_GRAD)
+                    else:
+                        grad_norm = get_grad_norm(amp.master_params(optimizer))
+                else:
+                    loss.backward()
+                    if config.TRAIN.CLIP_GRAD:
+                        grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), config.TRAIN.CLIP_GRAD)
+                    else:
+                        grad_norm = get_grad_norm(model.parameters())
+                if (idx + 1) % config.TRAIN.ACCUMULATION_STEPS == 0:
+                    optimizer.step()
+                    optimizer.zero_grad()
+                    lr_scheduler.step_update(epoch * num_steps + idx)
+            else:
+                loss = criterion(outputs, targets)
+                optimizer.zero_grad()
+                if config.AMP_OPT_LEVEL != "O0":
+                    with amp.scale_loss(loss, optimizer) as scaled_loss:
+                        scaled_loss.backward()
+                    if config.TRAIN.CLIP_GRAD:
+                        grad_norm = torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), config.TRAIN.CLIP_GRAD)
+                    else:
+                        grad_norm = get_grad_norm(amp.master_params(optimizer))
+                else:
+                    loss.backward()
+                    if config.TRAIN.CLIP_GRAD:
+                        grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), config.TRAIN.CLIP_GRAD)
+                    else:
+                        grad_norm = get_grad_norm(model.parameters())
+                optimizer.step()
+                lr_scheduler.step_update(epoch * num_steps + idx)
+
+            torch.cuda.synchronize()
+
+        logger.info(f"throughput averaged with 30 times")
+        tic1 = time.time()
+        for i in range(30):
+            outputs = model(samples)
+            if config.TRAIN.ACCUMULATION_STEPS > 1:
+                loss = criterion(outputs, targets)
+                loss = loss / config.TRAIN.ACCUMULATION_STEPS
+                if config.AMP_OPT_LEVEL != "O0":
+                    with amp.scale_loss(loss, optimizer) as scaled_loss:
+                        scaled_loss.backward()
+                    if config.TRAIN.CLIP_GRAD:
+                        grad_norm = torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), config.TRAIN.CLIP_GRAD)
+                    else:
+                        grad_norm = get_grad_norm(amp.master_params(optimizer))
+                else:
+                    loss.backward()
+                    if config.TRAIN.CLIP_GRAD:
+                        grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), config.TRAIN.CLIP_GRAD)
+                    else:
+                        grad_norm = get_grad_norm(model.parameters())
+                if (idx + 1) % config.TRAIN.ACCUMULATION_STEPS == 0:
+                    optimizer.step()
+                    optimizer.zero_grad()
+                    lr_scheduler.step_update(epoch * num_steps + idx)
+            else:
+                loss = criterion(outputs, targets)
+                optimizer.zero_grad()
+                if config.AMP_OPT_LEVEL != "O0":
+                    with amp.scale_loss(loss, optimizer) as scaled_loss:
+                        scaled_loss.backward()
+                    if config.TRAIN.CLIP_GRAD:
+                        grad_norm = torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), config.TRAIN.CLIP_GRAD)
+                    else:
+                        grad_norm = get_grad_norm(amp.master_params(optimizer))
+                else:
+                    loss.backward()
+                    if config.TRAIN.CLIP_GRAD:
+                        grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), config.TRAIN.CLIP_GRAD)
+                    else:
+                        grad_norm = get_grad_norm(model.parameters())
+                optimizer.step()
+                lr_scheduler.step_update(epoch * num_steps + idx)
+
+            torch.cuda.synchronize()
+        tic2 = time.time()
+        logger.info(f"batch_size {batch_size} throughput {30 * batch_size / (tic2 - tic1)}")
+        return
 
 
 @torch.no_grad()

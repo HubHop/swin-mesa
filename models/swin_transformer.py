@@ -306,8 +306,8 @@ class PatchMerging(nn.Module):
         super().__init__()
         self.input_resolution = input_resolution
         self.dim = dim
-        self.reduction = ms.Linear(4 * dim, 2 * dim, bias=False, quant_groups=num_heads)
-        self.norm = norm_layer(4 * dim, quant_groups=num_heads)
+        self.reduction = ms.Linear(4 * dim, 2 * dim, bias=False, quant_groups=num_heads * 2)
+        self.norm = norm_layer(4 * dim, quant_groups=num_heads * 2)
 
     def forward(self, x):
         """
@@ -438,8 +438,7 @@ class PatchEmbed(nn.Module):
 
         self.proj = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size, stride=patch_size)
         if norm_layer is not None:
-            # self.norm = nn.LayerNorm(embed_dim)
-            self.norm = norm_layer(embed_dim, quant_groups=num_heads)
+            self.norm = nn.LayerNorm(embed_dim)
         else:
             self.norm = None
 

@@ -23,6 +23,9 @@ on layernorm:
   level: 256
   ema_decay: 0.9
 
+  by_index: 0
+  enable: False
+
 on softmax:
   by_index: all
   enable: True

@@ -81,7 +81,7 @@ def main(config):
 
     logger.info(f"Creating model:{config.MODEL.TYPE}/{config.MODEL.NAME}")
     model = build_model(config)
-
+    ms.policy.find_and_convert_layers(model, config.HIDDEN_GROUP_SIZE)
     ms.policy.deploy_on_init(model, config.MS_POLICY, verbose=logger.info, override_verbose=True)
 
     model.cuda()

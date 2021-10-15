@@ -13,3 +13,4 @@ DATA:
   DATA_PATH: /projects/dl65/m3_imagenet
   DATASET: imagenet
 MS_POLICY: ms_policy/policy_tiny-8bit.txt
+HIDDEN_GROUP_SIZE: 16

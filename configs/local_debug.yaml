@@ -13,4 +13,4 @@ DATA:
   DATA_PATH: /home/datasets/imagenet
   DATASET: imagenet
 MS_POLICY: ms_policy/policy_tiny-8bit.txt
-# TRAIN_THROUGHPUT_MODE: True
+HIDDEN_GROUP_SIZE: 32

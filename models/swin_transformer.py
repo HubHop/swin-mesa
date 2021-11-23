@@ -12,13 +12,13 @@ from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 import memory_saving as ms
 
 class Mlp(nn.Module):
-    def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=ms.GELU, drop=0., num_heads=3):
+    def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.):
         super().__init__()
         out_features = out_features or in_features
         hidden_features = hidden_features or in_features
-        self.fc1 = ms.Linear(in_features, hidden_features, quant_groups=num_heads)
-        self.act = act_layer(quant_groups=num_heads)
-        self.fc2 = ms.Linear(hidden_features, out_features, quant_groups=num_heads)
+        self.fc1 = nn.Linear(in_features, hidden_features)
+        self.act = ms.GELU(quant_groups=hidden_features//32)
+        self.fc2 = nn.Linear(hidden_features, out_features)
         self.drop = nn.Dropout(drop)
 
     def forward(self, x):
@@ -102,9 +102,9 @@ class WindowAttention(nn.Module):
         relative_position_index = relative_coords.sum(-1)  # Wh*Ww, Wh*Ww
         self.register_buffer("relative_position_index", relative_position_index)
 
-        self.qkv = ms.Linear(dim, dim * 3, bias=qkv_bias, quant_groups=num_heads)
+        self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
         self.attn_drop = nn.Dropout(attn_drop)
-        self.proj = ms.Linear(dim, dim, quant_groups=num_heads)
+        self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
 
         self.mm1 = ms.MatMul(quant_groups=num_heads)
@@ -186,7 +186,7 @@ class SwinTransformerBlock(nn.Module):
 
     def __init__(self, dim, input_resolution, num_heads, window_size=7, shift_size=0,
                  mlp_ratio=4., qkv_bias=True, qk_scale=None, drop=0., attn_drop=0., drop_path=0.,
-                 act_layer=ms.GELU, norm_layer=ms.LayerNorm):
+                 act_layer=nn.GELU, norm_layer=nn.LayerNorm):
         super().__init__()
         self.dim = dim
         self.input_resolution = input_resolution
@@ -200,15 +200,15 @@ class SwinTransformerBlock(nn.Module):
             self.window_size = min(self.input_resolution)
         assert 0 <= self.shift_size < self.window_size, "shift_size must in 0-window_size"
 
-        self.norm1 = norm_layer(dim, quant_groups=num_heads)
+        self.norm1 = norm_layer(dim)
         self.attn = WindowAttention(
             dim, window_size=to_2tuple(self.window_size), num_heads=num_heads,
             qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
 
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
-        self.norm2 = norm_layer(dim, quant_groups=num_heads)
+        self.norm2 = norm_layer(dim)
         mlp_hidden_dim = int(dim * mlp_ratio)
-        self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop, num_heads=num_heads)
+        self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
 
         if self.shift_size > 0:
             # calculate attention mask for SW-MSA
@@ -302,12 +302,12 @@ class PatchMerging(nn.Module):
         norm_layer (nn.Module, optional): Normalization layer.  Default: nn.LayerNorm
     """
 
-    def __init__(self, input_resolution, dim, num_heads, norm_layer=ms.LayerNorm):
+    def __init__(self, input_resolution, dim, norm_layer=nn.LayerNorm):
         super().__init__()
         self.input_resolution = input_resolution
         self.dim = dim
-        self.reduction = ms.Linear(4 * dim, 2 * dim, bias=False, quant_groups=num_heads * 2)
-        self.norm = norm_layer(4 * dim, quant_groups=num_heads * 2)
+        self.reduction = nn.Linear(4 * dim, 2 * dim, bias=False)
+        self.norm = norm_layer(4 * dim)
 
     def forward(self, x):
         """
@@ -364,7 +364,7 @@ class BasicLayer(nn.Module):
 
     def __init__(self, dim, input_resolution, depth, num_heads, window_size,
                  mlp_ratio=4., qkv_bias=True, qk_scale=None, drop=0., attn_drop=0.,
-                 drop_path=0., norm_layer=ms.LayerNorm, downsample=None, use_checkpoint=False):
+                 drop_path=0., norm_layer=nn.LayerNorm, downsample=None, use_checkpoint=False):
 
         super().__init__()
         self.dim = dim
@@ -386,7 +386,7 @@ class BasicLayer(nn.Module):
 
         # patch merging layer
         if downsample is not None:
-            self.downsample = downsample(input_resolution, dim=dim, norm_layer=norm_layer, num_heads=num_heads)
+            self.downsample = downsample(input_resolution, dim=dim, norm_layer=norm_layer)
         else:
             self.downsample = None
 
@@ -423,7 +423,7 @@ class PatchEmbed(nn.Module):
         norm_layer (nn.Module, optional): Normalization layer. Default: None
     """
 
-    def __init__(self, img_size=224, patch_size=4, in_chans=3, embed_dim=96, norm_layer=None, num_heads=3):
+    def __init__(self, img_size=224, patch_size=4, in_chans=3, embed_dim=96, norm_layer=None):
         super().__init__()
         img_size = to_2tuple(img_size)
         patch_size = to_2tuple(patch_size)
@@ -438,7 +438,7 @@ class PatchEmbed(nn.Module):
 
         self.proj = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size, stride=patch_size)
         if norm_layer is not None:
-            self.norm = nn.LayerNorm(embed_dim)
+            self.norm = norm_layer(embed_dim)
         else:
             self.norm = None
 
@@ -449,7 +449,7 @@ class PatchEmbed(nn.Module):
             f"Input image size ({H}*{W}) doesn't match model ({self.img_size[0]}*{self.img_size[1]})."
         x = self.proj(x).flatten(2).transpose(1, 2)  # B Ph*Pw C
         if self.norm is not None:
-            x = self.norm(x.contiguous())
+            x = self.norm(x)
         return x
 
     def flops(self):
@@ -490,7 +490,7 @@ class SwinTransformer(nn.Module):
                  embed_dim=96, depths=[2, 2, 6, 2], num_heads=[3, 6, 12, 24],
                  window_size=7, mlp_ratio=4., qkv_bias=True, qk_scale=None,
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
-                 norm_layer=ms.LayerNorm, ape=False, patch_norm=True,
+                 norm_layer=nn.LayerNorm, ape=False, patch_norm=True,
                  use_checkpoint=False, **kwargs):
         super().__init__()
 
@@ -505,7 +505,7 @@ class SwinTransformer(nn.Module):
         # split image into non-overlapping patches
         self.patch_embed = PatchEmbed(
             img_size=img_size, patch_size=patch_size, in_chans=in_chans, embed_dim=embed_dim,
-            norm_layer=norm_layer if self.patch_norm else None, num_heads=num_heads[0])
+            norm_layer=norm_layer if self.patch_norm else None)
         num_patches = self.patch_embed.num_patches
         patches_resolution = self.patch_embed.patches_resolution
         self.patches_resolution = patches_resolution
@@ -538,9 +538,9 @@ class SwinTransformer(nn.Module):
                                use_checkpoint=use_checkpoint)
             self.layers.append(layer)
 
-        self.norm = norm_layer(self.num_features, quant_groups=num_heads[-1])
+        self.norm = norm_layer(self.num_features)
         self.avgpool = nn.AdaptiveAvgPool1d(1)
-        self.head = ms.Linear(self.num_features, num_classes, quant_groups=num_heads[-1]) if num_classes > 0 else nn.Identity()
+        self.head = nn.Linear(self.num_features, num_classes) if num_classes > 0 else nn.Identity()
 
         self.apply(self._init_weights)
 

@@ -181,6 +181,7 @@ _C.TRAIN_THROUGHPUT_MODE = False
 # local rank for DistributedDataParallel, given by command line argument
 _C.LOCAL_RANK = 0
 _C.MS_POLICY = ''
+_C.HIDDEN_GROUP_SIZE = 16
 
 def _update_config_from_file(config, cfg_file):
     config.defrost()

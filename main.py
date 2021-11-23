@@ -25,7 +25,7 @@ from lr_scheduler import build_scheduler
 from optimizer import build_optimizer
 from logger import create_logger
 from utils import load_checkpoint, save_checkpoint, get_grad_norm, auto_resume_helper, reduce_tensor, save_best_checkpoint, save_last_checkpoint
-import memory_saving as ms
+import mesa as ms
 import warnings
 warnings.filterwarnings("ignore")
 try:
@@ -81,7 +81,7 @@ def main(config):
 
     logger.info(f"Creating model:{config.MODEL.TYPE}/{config.MODEL.NAME}")
     model = build_model(config)
-    ms.policy.find_and_convert_layers(model, config.HIDDEN_GROUP_SIZE)
+    ms.policy.convert_by_group_size(model, config.HIDDEN_GROUP_SIZE)
     ms.policy.deploy_on_init(model, config.MS_POLICY, verbose=logger.info, override_verbose=True)
 
     model.cuda()
